@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor DC · Montaje físico</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #080b12;
+            --panel: #121826;
+            --panel-2: #1b2537;
+            --text: #eef3ff;
+            --muted: #9ba8bd;
+            --accent: #54d6ff;
+            --accent-2: #ffcf5a;
+            --accent-3: #9dff7a;
+            --danger: #ff6b6b;
+            --wire: #7dd3fc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            font-family: "Trebuchet MS", Verdana, sans-serif;
+            background:
+                radial-gradient(circle at 8% 8%, rgba(84, 214, 255, 0.2), transparent 30%),
+                radial-gradient(circle at 88% 12%, rgba(255, 207, 90, 0.16), transparent 28%),
+                linear-gradient(135deg, #101827, var(--bg) 48%, #111827);
+            color: var(--text);
+        }
+
+        main {
+            width: min(1400px, 96vw);
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: clamp(1.6rem, 3.4vw, 2.8rem);
+            letter-spacing: -0.05em;
+        }
+
+        .subtitle {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .layout {
+            display: grid;
+            flex: 1;
+            min-height: 0;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: minmax(360px, 390px) auto;
+            grid-template-areas:
+                "circuit motor control"
+                "charts charts charts";
+            gap: 14px;
+            align-items: stretch;
+        }
+
+        .charts-card {
+            grid-area: charts;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .circuit-card {
+            grid-area: circuit;
+        }
+
+        .motor-card {
+            grid-area: motor;
+            overflow: hidden;
+        }
+
+        .control-card {
+            grid-area: control;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+
+        .control-card .controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+        }
+
+        .control-card .buttons {
+            grid-column: 1 / -1;
+        }
+
+        .card {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
+                rgba(12, 18, 30, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+            min-height: 0;
+            overflow: hidden;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .circuit-title,
+        .panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .status {
+            border: 1px solid rgba(84, 214, 255, 0.45);
+            border-radius: 999px;
+            color: var(--accent);
+            padding: 4px 10px;
+            font-size: 0.78rem;
+        }
+
+        .circuit {
+            width: 100%;
+            height: calc(100% - 34px);
+            min-height: 0;
+            background:
+                linear-gradient(rgba(84, 214, 255, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(84, 214, 255, 0.055) 1px, transparent 1px),
+                radial-gradient(circle at 70% 45%, rgba(84, 214, 255, 0.14), transparent 26%),
+                #080d16;
+            background-size: 28px 28px, 28px 28px, auto, auto;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .wire {
+            fill: none;
+            stroke: var(--wire);
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .component {
+            fill: #111827;
+            stroke: #eef3ff;
+            stroke-width: 3;
+        }
+
+        .component-fill {
+            fill: url(#motorGradient);
+            stroke: rgba(238, 243, 255, 0.86);
+            stroke-width: 3;
+        }
+
+        .terminal {
+            fill: #ffcf5a;
+            stroke: #fff2bd;
+            stroke-width: 2;
+        }
+
+        .label {
+            fill: var(--text);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .small-label {
+            fill: var(--muted);
+            font-size: 14px;
+        }
+
+        .rotor {
+            transform-origin: 520px 215px;
+        }
+
+        .rotating {
+            animation: spin var(--spin-duration, 1s) linear infinite;
+        }
+
+        .flow {
+            stroke-dasharray: 16 14;
+            animation: currentFlow var(--flow-duration, 1s) linear infinite;
+        }
+
+        .paused {
+            animation-play-state: paused;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes currentFlow {
+            to {
+                stroke-dashoffset: -60;
+            }
+        }
+
+        .readouts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .readout {
+            background: rgba(11, 16, 24, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 9px 11px;
+        }
+
+        .readout span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .readout strong {
+            font-size: 1.18rem;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .chart-card {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            aspect-ratio: 2;
+            background: rgba(8, 13, 22, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 14px;
+            padding: 10px;
+        }
+
+        .chart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .chart-head strong {
+            font-size: 1rem;
+        }
+
+        .chart-head span {
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            height: auto;
+            aspect-ratio: auto;
+        }
+
+        .motor-stage {
+            height: calc(100% - 82px);
+            min-height: 0;
+            display: grid;
+            place-items: center;
+            perspective: 900px;
+            background:
+                radial-gradient(circle at 50% 30%, rgba(84, 214, 255, 0.18), transparent 34%),
+                linear-gradient(160deg, rgba(8, 13, 22, 0.92), rgba(17, 24, 39, 0.72));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+        }
+
+        #fan3d { width: 100%; height: 100%; aspect-ratio: auto; flex: none; min-height: 0; }
+
+        .motor-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .motor-chip {
+            background: rgba(11, 16, 24, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            color: var(--muted);
+            font-size: 0.78rem;
+            padding: 8px 10px;
+        }
+
+        .motor-chip strong {
+            display: block;
+            color: var(--text);
+            font-size: 0.95rem;
+            margin-top: 3px;
+        }
+
+        @keyframes spin3d {
+            to {
+                transform: translateZ(36px) rotate(360deg);
+            }
+        }
+
+        .pid-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .block-diagram {
+            width: 100%;
+            height: 96px;
+            background: rgba(8, 13, 22, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 14px;
+        }
+
+        .pid-notes {
+            color: var(--muted);
+            line-height: 1.35;
+            font-size: 0.84rem;
+        }
+
+        .pid-notes code {
+            color: var(--accent-2);
+        }
+
+        .controls {
+            display: grid;
+            gap: 8px;
+        }
+
+        .control {
+            background: rgba(11, 16, 24, 0.55);
+            border-radius: 14px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .control label {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 0.76rem;
+            line-height: 1.15;
+        }
+
+        .control output {
+            color: var(--text);
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: right;
+            font-size: 0.78rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            grid-column: 1 / -1;
+            margin-top: 1px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-weight: 700;
+            color: #081018;
+            cursor: pointer;
+            background: var(--accent);
+        }
+
+        button.secondary {
+            color: var(--text);
+            background: var(--panel-2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .equations {
+            margin-top: 10px;
+            padding-top: 9px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+            line-height: 1.35;
+            font-size: 0.72rem;
+            overflow-wrap: anywhere;
+        }
+
+        .equations code {
+            color: var(--accent-2);
+        }
+
+        @media (max-width: 1080px) {
+            body {
+                height: auto;
+                min-height: 100vh;
+                overflow: auto;
+            }
+
+            main {
+                height: auto;
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+                grid-template-areas:
+                    "charts"
+                    "circuit"
+                    "motor"
+                    "control";
+            }
+
+            .control-card .controls {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .card {
+                overflow: visible;
+            }
+
+            .circuit,
+            .motor-stage {
+                height: 280px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .layout,
+            .pid-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .readouts {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .charts {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+            }
+
+            .control-card .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-height: 700px) {
+            main {
+                padding: 8px 0;
+            }
+
+            h1 {
+                font-size: clamp(1.35rem, 3vw, 2.1rem);
+            }
+
+            .subtitle {
+                margin-bottom: 8px;
+                font-size: 0.84rem;
+            }
+
+            .card {
+                padding: 10px;
+            }
+
+            .circuit-title,
+            .panel-title {
+                margin-bottom: 7px;
+            }
+
+            .circuit {
+                height: min(31vh, 250px);
+                min-height: 185px;
+            }
+
+            .readouts {
+                margin-bottom: 7px;
+            }
+
+            canvas {
+                height: auto;
+            }
+
+            .chart-card,
+            .control {
+                padding: 8px;
+            }
+
+            .equations {
+                margin-top: 8px;
+            }
+        }
+        /* Content-sized panels keep every control inside its card. */
+        .layout { grid-template-rows: minmax(390px, auto) auto; }
+        .control-card {
+            min-width: 0;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .control-card .panel-title { margin-bottom: 0; }
+        .control-card .controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .control-card .control { min-width: 0; padding: 10px 12px; }
+        .control-card .control label {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 5px 10px;
+            font-size: .82rem;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+        .control-card output {
+            font-size: .84rem;
+            font-variant-numeric: tabular-nums;
+            margin-left: auto;
+        }
+        .control-card input[type="range"] {
+            display: block;
+            min-width: 0;
+            margin: 0;
+            height: 28px;
+            cursor: pointer;
+        }
+        .control-section-title {
+            grid-column: 1 / -1;
+            margin: 2px 0 0;
+            color: var(--accent);
+            font-size: .76rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+        }
+        .control-card .buttons { margin-top: 2px; }
+        .control-card button { min-height: 44px; }
+        .control-card :is(button, input, summary):focus-visible {
+            outline: 2px solid var(--accent-2);
+            outline-offset: 3px;
+        }
+        .control-card .equations {
+            margin-top: 0;
+            font-size: .78rem;
+            line-height: 1.65;
+        }
+        .equations summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+        .equations .equation-list { margin-top: 8px; }
+        .equations code { display: block; white-space: normal; }
+        .circuit-card, .motor-card { display: flex; flex-direction: column; }
+        .circuit-card .circuit { flex: 1; height: auto; min-height: 220px; }
+        .motor-card .motor-stage { flex: 1; height: auto; min-height: 240px; }
+        @media (max-width: 1080px) {
+            .layout { grid-template-rows: none; }
+            .circuit-card .circuit, .motor-card .motor-stage { flex: none; height: 280px; }
+        }
+        @media (max-width: 480px) {
+            .control-card .controls { grid-template-columns: minmax(0, 1fr); }
+        }
+        /* Keep canvas bitmap dimensions from determining the grid size. */
+        .chart-card { position: relative; }
+        .chart-card canvas { height: 0; flex: 1 1 0; min-width: 0; }
+        .motor-stage { position: relative; overflow: hidden; }
+        #fan3d { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .control-card { position: relative; }
+        .control-card .equations { position: relative; }
+        .control-card .equations[open] .equation-list {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 10;
+            margin: 0;
+            padding: 14px;
+            border: 1px solid rgba(84, 214, 255, .45);
+            border-radius: 12px;
+            background: #101a29;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, .5);
+        }
+        @media (min-width: 1000px) and (min-height: 600px) {
+            body { height: 100dvh; overflow: hidden; }
+            main { width: 98vw; height: 100dvh; min-height: 0; padding: 8px 0; }
+            h1 { font-size: clamp(1.3rem, 2.3vw, 2rem); }
+            .subtitle { font-size: .8rem; margin-bottom: 8px; }
+            .layout {
+                flex: 1 1 0;
+                min-height: 0;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(330px, .95fr);
+                grid-template-rows: minmax(0, 1fr) minmax(0, .85fr);
+                grid-template-areas: "circuit motor control" "charts charts control";
+                gap: 10px;
+            }
+            .layout > .card { min-width: 0; min-height: 0; padding: 10px; }
+            .circuit-card .circuit { flex: 1 1 0; min-height: 0; height: 0; }
+            .circuit-card .pid-grid { flex: none; gap: 4px; margin-top: 4px; }
+            .block-diagram { height: 100px; }
+            .pid-notes { font-size: .7rem; line-height: 1.2; }
+            .motor-card .motor-stage { flex: 1 1 0; min-height: 0; height: 0; }
+            .motor-meta { margin-top: 6px; }
+            .motor-chip { padding: 6px 8px; }
+            .control-card { gap: 10px; overflow: visible; }
+            .control-card .controls { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+            .control-card .control { grid-column: span 3; padding: 8px 10px; }
+            .control-card .control:has(input:is(#kp, #ki, #kd)) { grid-column: span 2; }
+            .control-card .control label { font-size: .76rem; }
+            .control-card output { font-size: .78rem; }
+            .control-card .equations { margin-top: auto; }
+            .charts-card .panel-title { margin-bottom: 6px; }
+            .readouts { gap: 6px; margin-bottom: 6px; }
+            .readout { padding: 6px 8px; }
+            .readout strong { font-size: .95rem; }
+            .readout span { font-size: .7rem; margin-bottom: 2px; }
+            .charts { flex: 1 1 0; gap: 6px; }
+            .chart-card { aspect-ratio: auto; padding: 6px; overflow: hidden; }
+            .chart-head { flex-wrap: wrap; gap: 2px 6px; }
+            .chart-head strong { font-size: .78rem; }
+            .chart-head span { font-size: .65rem; }
+        }
+        .equations .pid-notes { margin-bottom: 10px; font-size: .78rem; line-height: 1.5; }
+        .equations .pid-notes code { display: inline; }
+    button:disabled{opacity:.45;cursor:not-allowed}.subtitle button{padding:5px 9px;font-size:.75rem}.subtitle a{color:var(--accent);margin:0 10px}.control-card small{color:var(--muted);font-size:.72rem}.control-card #potBtn{min-height:26px;padding:5px;font-size:.7rem}#resetBtn{background:#a53243}#connectionNote{font-size:.75rem}/* Only exchange the two original panel areas; keep circuit and motor side by side. */
+.pid-terms{display:flex;gap:12px;flex-wrap:wrap;margin:0;font-size:12px;color:var(--muted)}
+.pid-terms strong{color:var(--text);font-variant-numeric:tabular-nums}
+.control-card>small{font-size:11px;line-height:1.3;color:var(--muted)}
+.readout strong{font-variant-numeric:tabular-nums}
+.chart-card canvas{touch-action:none}
+@media(min-width:1000px) and (min-height:600px){
+ .layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(400px,1.45fr);grid-template-rows:minmax(0,1fr) minmax(0,.85fr);grid-template-areas:"circuit motor charts" "control control charts"}
+ .charts-card .readouts{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .charts-card .readout strong{font-size:1.15rem}
+ .charts-card .charts{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(3,minmax(0,1fr));gap:8px}
+ .charts-card .chart-head strong{font-size:.86rem}
+ .charts-card .chart-head span{font-size:.72rem}
+ .charts-card .panel-title h2{font-size:1rem}
+ .control-card{overflow:hidden;gap:6px}
+ .control-card .controls{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+ .control-card .control,.control-card .control:has(input:is(#kp,#ki,#kd)){grid-column:span 1;padding:6px 9px}
+ .control-card .control-section-title{margin:0;font-size:10px}
+ .control-card .control label{font-size:12px}
+ .control-card input[type=range]{height:24px}
+ .control-card .buttons{grid-column:4;grid-row:4;margin:0;grid-template-columns:1fr;align-self:stretch}
+ .control-card button{min-height:30px;padding:6px}
+}
+.control-card .buttons{grid-template-columns:1fr 1fr;gap:6px}.control-card #defaultsBtn{font-size:.72rem;padding:5px;line-height:1.2}</style>
+</head>
+<body>
+    <main>
+        <h1>Control PID · Motor DC</h1>
+        <p class="subtitle"><button id="connectBtn">Conectar ESP32</button> <button id="disconnectBtn" disabled>Desconectar</button> <a href="simulacion_motor_dc.html" target="_blank" rel="noopener">Simulación ↗</a> <span id="connectionNote" role="status">Montaje físico · cierra el Monitor Serial y conecta por USB.</span></p>
+
+        <section class="layout">
+            <article class="card circuit-card">
+                <div class="circuit-title">
+                    <h2>Circuito del motor</h2>
+                    <span class="status" id="stateText">Sin conexión</span>
+                </div>
+
+                <svg class="circuit" viewBox="0 0 760 430" role="img" aria-label="Circuito equivalente de un motor DC">
+                    <defs>
+                        <linearGradient id="motorGradient" x1="0" x2="1" y1="0" y2="1">
+                            <stop offset="0%" stop-color="#24364e" />
+                            <stop offset="55%" stop-color="#111827" />
+                            <stop offset="100%" stop-color="#2b3d55" />
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3.2" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <rect x="50" y="42" width="660" height="340" rx="26" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.08)" />
+                    <path id="currentPath" class="wire flow" filter="url(#glow)" d="M120 100 H245 L275 75 L315 125 L355 75 L395 125 L435 75 L465 100 H520 V145 M520 285 V335 H120 V260" />
+                    <path class="wire" d="M120 100 H245 L275 75 L315 125 L355 75 L395 125 L435 75 L465 100 H520 V145 M520 285 V335 H120 V260" opacity="0.35" />
+
+                    <line class="wire" x1="120" y1="130" x2="120" y2="175" />
+                    <line class="wire" x1="120" y1="215" x2="120" y2="260" />
+                    <circle class="terminal" cx="120" cy="100" r="8" />
+                    <circle class="terminal" cx="120" cy="335" r="8" />
+                    <line x1="90" y1="175" x2="150" y2="175" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <line x1="105" y1="215" x2="135" y2="215" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <text class="small-label" x="154" y="178">+</text>
+                    <text class="small-label" x="142" y="218">-</text>
+                    <text class="label" x="72" y="200">V</text>
+                    <text class="small-label" x="58" y="228">Fuente DC</text>
+
+                    <rect x="250" y="72" width="212" height="58" rx="16" fill="rgba(255,255,255,0.055)" stroke="rgba(238,243,255,0.12)" />
+                    <text class="label" x="322" y="58">R + L</text>
+                    <text class="small-label" x="285" y="150">Armadura</text>
+
+                    <circle cx="520" cy="215" r="92" fill="rgba(84,214,255,0.07)" stroke="rgba(84,214,255,0.18)" stroke-width="2" />
+                    <circle class="component-fill" cx="520" cy="215" r="70" />
+                    <circle cx="520" cy="215" r="52" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="8" stroke-dasharray="18 12" />
+                    <g id="rotor" class="rotor rotating">
+                        <line x1="475" y1="215" x2="565" y2="215" stroke="#ffcf5a" stroke-width="12" stroke-linecap="round" />
+                        <line x1="520" y1="170" x2="520" y2="260" stroke="#ffcf5a" stroke-width="12" stroke-linecap="round" />
+                        <circle cx="520" cy="215" r="13" fill="#10131a" stroke="#eef3ff" stroke-width="3" />
+                    </g>
+                    <circle class="terminal" cx="520" cy="145" r="7" />
+                    <circle class="terminal" cx="520" cy="285" r="7" />
+                    <text class="label" x="488" y="316">Motor DC</text>
+                    <text class="small-label" x="468" y="340">Kt*i - b*w - carga</text>
+
+                    <path d="M620 215 H690" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <polygon points="690,215 668,202 668,228" fill="#eef3ff" />
+                    <text class="small-label" x="620" y="196">Eje</text>
+                </svg>
+
+                <div class="pid-grid">
+                    <svg class="block-diagram" viewBox="0 0 760 170" role="img" aria-label="Diagrama de bloques del controlador PID para el motor DC">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#eef3ff" />
+                            </marker>
+                        </defs>
+                        <line x1="35" y1="85" x2="108" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <circle cx="132" cy="85" r="22" fill="#111827" stroke="#eef3ff" stroke-width="3" />
+                        <text class="label" x="126" y="91">+</text>
+                        <text class="small-label" x="36" y="72">w ref</text>
+                        <line x1="154" y1="85" x2="220" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <rect x="220" y="48" width="128" height="74" rx="14" fill="#121826" stroke="#54d6ff" stroke-width="3" />
+                        <text class="label" x="267" y="80">PID</text>
+                        <text class="small-label" x="244" y="103">Kp Ki Kd</text>
+                        <line x1="348" y1="85" x2="430" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <rect x="430" y="48" width="154" height="74" rx="14" fill="#121826" stroke="#ffcf5a" stroke-width="3" />
+                        <text class="label" x="462" y="80">Motor DC</text>
+                        <text class="small-label" x="458" y="103">electrico + mecanico</text>
+                        <line x1="584" y1="85" x2="715" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <text class="small-label" x="642" y="72">w</text>
+                        <path d="M650 85 V145 H132 V109" fill="none" stroke="#9ba8bd" stroke-width="3" marker-end="url(#arrow)" />
+                        <text class="small-label" x="146" y="129">- realimentacion</text>
+                    </svg>
+
+                    
+                </div>
+
+            </article>
+
+            <article class="card motor-card">
+                <div class="panel-title">
+                    <h2>Motor 3D</h2>
+                    <span class="status" id="motorState">Sin datos</span>
+                </div>
+
+                <div class="motor-stage">
+                    <canvas id="fan3d" aria-label="Motor DC tridimensional con carcasa, bornes y eje animado"></canvas></div><div class="motor-meta">
+                    <div class="motor-chip">Velocidad del encoder<strong id="motorSpeed3d">—</strong></div>
+                    <div class="motor-chip">PWM aplicado<strong id="motorVoltage3d">—</strong></div>
+                </div>
+            </article>
+
+            <article class="card charts-card">
+                <div class="panel-title">
+                    <h2>Respuesta del PID</h2>
+                    <span class="status" id="controlText">PWM: —</span>
+                </div>
+
+                <div class="readouts">
+                    <div class="readout">
+                        <span>Tiempo</span>
+                        <strong id="timeValue">—</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Referencia</span>
+                        <strong id="targetValue">—</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Velocidad</span>
+                        <strong id="speedValue">—</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Error · RPM</span>
+                        <strong id="currentValue">—</strong>
+                    </div>
+                </div>
+
+                <div class="charts">
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>Velocidad vs referencia</strong>
+                            <span>Últimos 30 s</span>
+                        </div>
+                        <canvas id="speedChart" width="620" height="220" aria-label="Grafica de velocidad y referencia"></canvas>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>PWM de control</strong>
+                            <span>PWM · 0–100 %</span>
+                        </div>
+                        <canvas id="controlChart" width="620" height="220" aria-label="Gráfica de PWM"></canvas>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>Error de velocidad</strong>
+                            <span>Referencia − encoder · RPM</span>
+                        </div>
+                        <canvas id="currentChart" width="620" height="220" aria-label="Gráfica de error de velocidad"></canvas>
+                    </div>
+                </div>
+            </article>
+
+            <aside class="card control-card">
+                <div class="panel-title">
+                    <h2>Controles en vivo</h2>
+                </div>
+
+                <div class="controls">
+                    <h3 class="control-section-title">CONDICIONES DEL MOTOR</h3>
+                    <div class="control">
+                        <label for="targetSpeed">Velocidad objetivo <output id="targetOut">0 RPM</output></label>
+                        <input id="targetSpeed" type="range" min="0" max="200" step="1" value="0">
+                    </div>
+
+                    <div class="control"><label>PWM recibido <output id="actualPWM">—</output></label><small>Salida del L298N · 0–100 %</small></div>
+
+                    <div class="control"><label>Perturbación <output id="actualPert">—</output></label><button id="potBtn" class="secondary">Habilitar potenciómetro</button></div>
+
+                    <div class="control"><label>Encoder <output>20 ranuras</output></label><small id="quality">Sin mediciones</small></div>
+                    <h3 class="control-section-title">AJUSTE DEL PID</h3>
+
+                    <div class="control">
+                        <label for="kp">Kp <output id="kpOut">1.20</output></label>
+                        <input id="kp" type="range" min="0" max="10" step="0.01" value="0.15">
+                    </div>
+
+                    <div class="control">
+                        <label for="ki">Ki <output id="kiOut">0.80</output></label>
+                        <input id="ki" type="range" min="0" max="2" step="0.01" value="0.20">
+                    </div>
+
+                    <div class="control">
+                        <label for="kd">Kd <output id="kdOut">0.04</output></label>
+                        <input id="kd" type="range" min="0" max="2" step="0.001" value="0.005">
+                    </div>
+
+                    <div class="buttons">
+                        <button class="secondary" id="resetBtn" type="button">Detener motor</button>
+<button class="secondary" id="defaultsBtn" type="button">Restablecer valores</button>
+                    </div>
+                </div>
+
+                
+            <div class="pid-terms"><span>P <strong id="pTerm">—</strong></span><span>I <strong id="iTerm">—</strong></span><span>D <strong id="dTerm">—</strong></span><span>Σ PID <strong id="sumTerm">—</strong></span></div><small id="confirmedGains">Esperando ganancias del equipo</small><small>PWM limitado a 0–100 %. D actúa sobre la velocidad medida. El motor puede detenerse con una salida baja.</small></aside>
+
+        </section>
+    </main>
+
+    <script src="montaje.js?v=3.2"></script>
+</body>
+</html>
+
+
+
+
+
