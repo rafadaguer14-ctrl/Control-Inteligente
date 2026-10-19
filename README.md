@@ -48,7 +48,7 @@ La validación inicial a 100 RPM comparó tres ensayos por controlador y obtuvo 
 
 ## Video de funcionamiento
 
-El archivo **Prueba de Funcionamiento PID Redes Neuronales.mp4** se distribuye como adjunto de la [versión de esta entrega](https://github.com/rafadaguer14-ctrl/Control-Inteligente/releases/tag/entrega-2026-10-19). Conserva la calidad del original y se aloja fuera de Git por superar el límite de 100 MiB por archivo. El acceso requiere permisos del repositorio privado.
+El archivo **Prueba de Funcionamiento PID Redes Neuronales.mp4** se distribuye como adjunto de la [versión de esta entrega](https://github.com/rafadaguer14-ctrl/Control-Inteligente/releases/tag/entrega-2026-10-19). Conserva la calidad del original y se aloja fuera de Git por superar el límite de 100 MiB por archivo. El repositorio y el video son públicos: pueden consultarse sin iniciar sesión.
 
 ## Verificación
 
@@ -61,3 +61,4 @@ node test-pid-learning.cjs
 ```
 
 Estas pruebas verifican lógica matemática y métricas. No sustituyen la compilación del firmware ni una prueba del montaje físico.
+
