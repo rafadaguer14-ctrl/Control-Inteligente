@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Fuzzy del motor DC</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #080b12;
+            --panel: #121826;
+            --panel-2: #1b2537;
+            --text: #eef3ff;
+            --muted: #9ba8bd;
+            --accent: #54d6ff;
+            --accent-2: #ffcf5a;
+            --accent-3: #9dff7a;
+            --danger: #ff6b6b;
+            --wire: #7dd3fc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            font-family: "Trebuchet MS", Verdana, sans-serif;
+            background:
+                radial-gradient(circle at 8% 8%, rgba(84, 214, 255, 0.2), transparent 30%),
+                radial-gradient(circle at 88% 12%, rgba(255, 207, 90, 0.16), transparent 28%),
+                linear-gradient(135deg, #101827, var(--bg) 48%, #111827);
+            color: var(--text);
+        }
+
+        main {
+            width: min(1400px, 96vw);
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 10px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: clamp(1.6rem, 3.4vw, 2.8rem);
+            letter-spacing: -0.05em;
+        }
+
+        .subtitle {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .layout {
+            display: grid;
+            flex: 1;
+            min-height: 0;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-rows: minmax(360px, 390px) auto;
+            grid-template-areas:
+                "circuit motor control"
+                "charts charts charts";
+            gap: 14px;
+            align-items: stretch;
+        }
+
+        .charts-card {
+            grid-area: charts;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .circuit-card {
+            grid-area: circuit;
+        }
+
+        .motor-card {
+            grid-area: motor;
+            overflow: hidden;
+        }
+
+        .control-card {
+            grid-area: control;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+
+        .control-card .controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 9px;
+        }
+
+        .control-card .buttons {
+            grid-column: 1 / -1;
+        }
+
+        .card {
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035)),
+                rgba(12, 18, 30, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+            min-height: 0;
+            overflow: hidden;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .circuit-title,
+        .panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .status {
+            border: 1px solid rgba(84, 214, 255, 0.45);
+            border-radius: 999px;
+            color: var(--accent);
+            padding: 4px 10px;
+            font-size: 0.78rem;
+        }
+
+        .circuit {
+            width: 100%;
+            height: calc(100% - 34px);
+            min-height: 0;
+            background:
+                linear-gradient(rgba(84, 214, 255, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(84, 214, 255, 0.055) 1px, transparent 1px),
+                radial-gradient(circle at 70% 45%, rgba(84, 214, 255, 0.14), transparent 26%),
+                #080d16;
+            background-size: 28px 28px, 28px 28px, auto, auto;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .wire {
+            fill: none;
+            stroke: var(--wire);
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .component {
+            fill: #111827;
+            stroke: #eef3ff;
+            stroke-width: 3;
+        }
+
+        .component-fill {
+            fill: url(#motorGradient);
+            stroke: rgba(238, 243, 255, 0.86);
+            stroke-width: 3;
+        }
+
+        .terminal {
+            fill: #ffcf5a;
+            stroke: #fff2bd;
+            stroke-width: 2;
+        }
+
+        .label {
+            fill: var(--text);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .small-label {
+            fill: var(--muted);
+            font-size: 14px;
+        }
+
+        .rotor {
+            transform-origin: 520px 215px;
+        }
+
+        .rotating {
+            animation: spin var(--spin-duration, 1s) linear infinite;
+        }
+
+        .flow {
+            stroke-dasharray: 16 14;
+            animation: currentFlow var(--flow-duration, 1s) linear infinite;
+        }
+
+        .paused {
+            animation-play-state: paused;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes currentFlow {
+            to {
+                stroke-dashoffset: -60;
+            }
+        }
+
+        .readouts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .readout {
+            background: rgba(11, 16, 24, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 9px 11px;
+        }
+
+        .readout span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.76rem;
+            margin-bottom: 4px;
+        }
+
+        .readout strong {
+            font-size: 1.18rem;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .chart-card {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            aspect-ratio: 2;
+            background: rgba(8, 13, 22, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 14px;
+            padding: 10px;
+        }
+
+        .chart-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+
+        .chart-head strong {
+            font-size: 1rem;
+        }
+
+        .chart-head span {
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            height: auto;
+            aspect-ratio: auto;
+        }
+
+        .motor-stage {
+            height: calc(100% - 82px);
+            min-height: 0;
+            display: grid;
+            place-items: center;
+            perspective: 900px;
+            background:
+                radial-gradient(circle at 50% 30%, rgba(84, 214, 255, 0.18), transparent 34%),
+                linear-gradient(160deg, rgba(8, 13, 22, 0.92), rgba(17, 24, 39, 0.72));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+        }
+
+        #fan3d { width: 100%; height: 100%; aspect-ratio: auto; flex: none; min-height: 0; }
+
+        .motor-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .motor-chip {
+            background: rgba(11, 16, 24, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            color: var(--muted);
+            font-size: 0.78rem;
+            padding: 8px 10px;
+        }
+
+        .motor-chip strong {
+            display: block;
+            color: var(--text);
+            font-size: 0.95rem;
+            margin-top: 3px;
+        }
+
+        @keyframes spin3d {
+            to {
+                transform: translateZ(36px) rotate(360deg);
+            }
+        }
+
+        .pid-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .block-diagram {
+            width: 100%;
+            height: 96px;
+            background: rgba(8, 13, 22, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 14px;
+        }
+
+        .pid-notes {
+            color: var(--muted);
+            line-height: 1.35;
+            font-size: 0.84rem;
+        }
+
+        .pid-notes code {
+            color: var(--accent-2);
+        }
+
+        .controls {
+            display: grid;
+            gap: 8px;
+        }
+
+        .control {
+            background: rgba(11, 16, 24, 0.55);
+            border-radius: 14px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .control label {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 0.76rem;
+            line-height: 1.15;
+        }
+
+        .control output {
+            color: var(--text);
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: right;
+            font-size: 0.78rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            grid-column: 1 / -1;
+            margin-top: 1px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-weight: 700;
+            color: #081018;
+            cursor: pointer;
+            background: var(--accent);
+        }
+
+        button.secondary {
+            color: var(--text);
+            background: var(--panel-2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .equations {
+            margin-top: 10px;
+            padding-top: 9px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+            line-height: 1.35;
+            font-size: 0.72rem;
+            overflow-wrap: anywhere;
+        }
+
+        .equations code {
+            color: var(--accent-2);
+        }
+
+        @media (max-width: 1080px) {
+            body {
+                height: auto;
+                min-height: 100vh;
+                overflow: auto;
+            }
+
+            main {
+                height: auto;
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+                grid-template-areas:
+                    "charts"
+                    "circuit"
+                    "motor"
+                    "control";
+            }
+
+            .control-card .controls {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .card {
+                overflow: visible;
+            }
+
+            .circuit,
+            .motor-stage {
+                height: 280px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .layout,
+            .pid-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .readouts {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .charts {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+            }
+
+            .control-card .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-height: 700px) {
+            main {
+                padding: 8px 0;
+            }
+
+            h1 {
+                font-size: clamp(1.35rem, 3vw, 2.1rem);
+            }
+
+            .subtitle {
+                margin-bottom: 8px;
+                font-size: 0.84rem;
+            }
+
+            .card {
+                padding: 10px;
+            }
+
+            .circuit-title,
+            .panel-title {
+                margin-bottom: 7px;
+            }
+
+            .circuit {
+                height: min(31vh, 250px);
+                min-height: 185px;
+            }
+
+            .readouts {
+                margin-bottom: 7px;
+            }
+
+            canvas {
+                height: auto;
+            }
+
+            .chart-card,
+            .control {
+                padding: 8px;
+            }
+
+            .equations {
+                margin-top: 8px;
+            }
+        }
+        /* Content-sized panels keep every control inside its card. */
+        .layout { grid-template-rows: minmax(390px, auto) auto; }
+        .control-card {
+            min-width: 0;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .control-card .panel-title { margin-bottom: 0; }
+        .control-card .controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .control-card .control { min-width: 0; padding: 10px 12px; }
+        .control-card .control label {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 5px 10px;
+            font-size: .82rem;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+        .control-card output {
+            font-size: .84rem;
+            font-variant-numeric: tabular-nums;
+            margin-left: auto;
+        }
+        .control-card input[type="range"] {
+            display: block;
+            min-width: 0;
+            margin: 0;
+            height: 28px;
+            cursor: pointer;
+        }
+        .control-section-title {
+            grid-column: 1 / -1;
+            margin: 2px 0 0;
+            color: var(--accent);
+            font-size: .76rem;
+            font-weight: 700;
+            letter-spacing: .05em;
+        }
+        .control-card .buttons { margin-top: 2px; }
+        .control-card button { min-height: 44px; }
+        .control-card :is(button, input, summary):focus-visible {
+            outline: 2px solid var(--accent-2);
+            outline-offset: 3px;
+        }
+        .control-card .equations {
+            margin-top: 0;
+            font-size: .78rem;
+            line-height: 1.65;
+        }
+        .equations summary { cursor: pointer; font-weight: 700; color: var(--muted); }
+        .equations .equation-list { margin-top: 8px; }
+        .equations code { display: block; white-space: normal; }
+        .circuit-card, .motor-card { display: flex; flex-direction: column; }
+        .circuit-card .circuit { flex: 1; height: auto; min-height: 220px; }
+        .motor-card .motor-stage { flex: 1; height: auto; min-height: 240px; }
+        @media (max-width: 1080px) {
+            .layout { grid-template-rows: none; }
+            .circuit-card .circuit, .motor-card .motor-stage { flex: none; height: 280px; }
+        }
+        @media (max-width: 480px) {
+            .control-card .controls { grid-template-columns: minmax(0, 1fr); }
+        }
+        /* Keep canvas bitmap dimensions from determining the grid size. */
+        .chart-card { position: relative; }
+        .chart-card canvas { height: 0; flex: 1 1 0; min-width: 0; }
+        .motor-stage { position: relative; overflow: hidden; }
+        #fan3d { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .control-card { position: relative; }
+        .control-card .equations { position: relative; }
+        .control-card .equations[open] .equation-list {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 10;
+            margin: 0;
+            padding: 14px;
+            border: 1px solid rgba(84, 214, 255, .45);
+            border-radius: 12px;
+            background: #101a29;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, .5);
+        }
+        @media (min-width: 1000px) and (min-height: 600px) {
+            body { height: 100dvh; overflow: hidden; }
+            main { width: 98vw; height: 100dvh; min-height: 0; padding: 8px 0; }
+            h1 { font-size: clamp(1.3rem, 2.3vw, 2rem); }
+            .subtitle { font-size: .8rem; margin-bottom: 8px; }
+            .layout {
+                flex: 1 1 0;
+                min-height: 0;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(330px, .95fr);
+                grid-template-rows: minmax(0, 1fr) minmax(0, .85fr);
+                grid-template-areas: "circuit motor control" "charts charts control";
+                gap: 10px;
+            }
+            .layout > .card { min-width: 0; min-height: 0; padding: 10px; }
+            .circuit-card .circuit { flex: 1 1 0; min-height: 0; height: 0; }
+            .circuit-card .pid-grid { flex: none; gap: 4px; margin-top: 4px; }
+            .block-diagram { height: 100px; }
+            .pid-notes { font-size: .7rem; line-height: 1.2; }
+            .motor-card .motor-stage { flex: 1 1 0; min-height: 0; height: 0; }
+            .motor-meta { margin-top: 6px; }
+            .motor-chip { padding: 6px 8px; }
+            .control-card { gap: 10px; overflow: visible; }
+            .control-card .controls { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+            .control-card .control { grid-column: span 3; padding: 8px 10px; }
+            .control-card .control:has(input:is(#kp, #ki, #kd)) { grid-column: span 2; }
+            .control-card .control label { font-size: .76rem; }
+            .control-card output { font-size: .78rem; }
+            .control-card .equations { margin-top: auto; }
+            .charts-card .panel-title { margin-bottom: 6px; }
+            .readouts { gap: 6px; margin-bottom: 6px; }
+            .readout { padding: 6px 8px; }
+            .readout strong { font-size: .95rem; }
+            .readout span { font-size: .7rem; margin-bottom: 2px; }
+            .charts { flex: 1 1 0; gap: 6px; }
+            .chart-card { aspect-ratio: auto; padding: 6px; overflow: hidden; }
+            .chart-head { flex-wrap: wrap; gap: 2px 6px; }
+            .chart-head strong { font-size: .78rem; }
+            .chart-head span { font-size: .65rem; }
+        }
+        .equations .pid-notes { margin-bottom: 10px; font-size: .78rem; line-height: 1.5; }
+        .equations .pid-notes code { display: inline; }
+    .fuzzy-nav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}.fuzzy-nav a,.fuzzy-nav span{color:#54d6ff;padding:5px;text-decoration:none}.fuzzy-nav button{padding:6px 10px;font-size:.78rem}.fuzzy-nav [aria-pressed=true]{outline:2px solid #9dff7a}[hidden]{display:none!important}dialog{color:#eef3ff;background:#141c29;border:1px solid #526078;border-radius:16px;max-width:700px;width:90vw;max-height:85vh;overflow:auto;padding:24px}dialog::backdrop{background:#0009}dialog p{line-height:1.55;margin:12px 0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #526078;padding:10px;text-align:center}#fuzzyStatus{font-size:.78rem;line-height:1.4;margin:0}#hardwarePanel{padding:24px;line-height:1.6}.control-card .control:has(input:is(#kp,#ki,#kd)){grid-column:span 3}.control-card .control label{flex-wrap:wrap}body:has(dialog[open]){overflow:hidden}
+@media(min-width:1100px) and (min-height:700px){.layout{grid-template-columns:1fr 1fr 1.4fr;grid-template-areas:"circuit motor charts" "control control charts"}.charts{display:flex;flex-direction:column}.chart-card{flex:1;min-height:0}.control-card .controls{grid-template-columns:repeat(4,minmax(0,1fr))}.control-card .control,.control-card .control:has(input:is(#kp,#ki,#kd)){grid-column:span 1}.control-card .buttons{grid-column:1/-1}.control-card .control-section-title{grid-column:1/-1}}
+@media(max-height:699px){body{height:auto;overflow:auto}main{height:auto}.layout{grid-template-rows:auto;}.chart-card{min-height:160px}.motor-stage{min-height:220px}}
+@media(min-width:1100px) and (min-height:700px){.control-card{gap:4px}.control-card .controls{gap:4px}.control-card .control{padding:4px 7px}.control-section-title{margin:0!important;font-size:.7rem!important}.control-card input[type=range]{margin:3px 0;height:15px}.control-card label{gap:2px;margin-bottom:0}.control-card .buttons{margin:0}.control-card button{padding:6px 10px;min-height:28px}.control-card #modelBtn{align-self:flex-start}.control-card h2{font-size:1rem}.control-card .panel-title{margin-bottom:0}.control-card output{font-size:.72rem}.control-card #fuzzyStatus{font-size:.7rem}.layout{grid-template-rows:minmax(0,1fr) minmax(0,.9fr)}} </style>
+</head>
+<body>
+    <main>
+        <h1>Control Fuzzy del motor DC</h1>
+        <p class="subtitle"><a href="red-neuronal.html" style="color:#54d6ff;margin-right:12px">Red neuronal ↗</a> Simulación Fuzzy · Modelo didáctico del motor, no calibrado con el montaje físico.</p>
+
+        <nav class="fuzzy-nav" aria-label="Controladores"><a href="simulador_motor_dc.html">PID · Motor real</a><a href="simulacion_motor_dc.html">PID · Simulación</a><span aria-current="page">Fuzzy</span><button id="simulationTab" aria-pressed="true">Simulación</button><button id="hardwareTab" aria-pressed="false">Motor real · ESP32</button><button id="rulesBtn">Ver reglas</button><button id="defaultsBtn">Valores iniciales</button><button id="exportBtn">Exportar CSV</button></nav>
+<section id="hardwarePanel" class="card" hidden><h2>Fuzzy · Motor real</h2><p>Esta etapa se habilitará después de evaluar la simulación. No se envían comandos a la ESP32 desde esta sección.</p><p>Primero revisaremos seguimiento de referencia, rechazo de carga y saturación. Después adaptaremos el controlador al encoder y al PWM del montaje.</p><button id="returnBtn">Volver a la simulación</button></section>
+<section class="layout" id="simulationPanel">
+            <article class="card circuit-card">
+                <div class="circuit-title">
+                    <h2>Circuito del motor</h2>
+                    <span class="status" id="stateText">Simulando</span>
+                </div>
+
+                <svg class="circuit" viewBox="0 0 760 430" role="img" aria-label="Circuito equivalente de un motor DC">
+                    <defs>
+                        <linearGradient id="motorGradient" x1="0" x2="1" y1="0" y2="1">
+                            <stop offset="0%" stop-color="#24364e" />
+                            <stop offset="55%" stop-color="#111827" />
+                            <stop offset="100%" stop-color="#2b3d55" />
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3.2" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <rect x="50" y="42" width="660" height="340" rx="26" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.08)" />
+                    <path id="currentPath" class="wire flow" filter="url(#glow)" d="M120 100 H245 L275 75 L315 125 L355 75 L395 125 L435 75 L465 100 H520 V145 M520 285 V335 H120 V260" />
+                    <path class="wire" d="M120 100 H245 L275 75 L315 125 L355 75 L395 125 L435 75 L465 100 H520 V145 M520 285 V335 H120 V260" opacity="0.35" />
+
+                    <line class="wire" x1="120" y1="130" x2="120" y2="175" />
+                    <line class="wire" x1="120" y1="215" x2="120" y2="260" />
+                    <circle class="terminal" cx="120" cy="100" r="8" />
+                    <circle class="terminal" cx="120" cy="335" r="8" />
+                    <line x1="90" y1="175" x2="150" y2="175" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <line x1="105" y1="215" x2="135" y2="215" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <text class="small-label" x="154" y="178">+</text>
+                    <text class="small-label" x="142" y="218">-</text>
+                    <text class="label" x="72" y="200">V</text>
+                    <text class="small-label" x="58" y="228">Fuente DC</text>
+
+                    <rect x="250" y="72" width="212" height="58" rx="16" fill="rgba(255,255,255,0.055)" stroke="rgba(238,243,255,0.12)" />
+                    <text class="label" x="322" y="58">R + L</text>
+                    <text class="small-label" x="285" y="150">Armadura</text>
+
+                    <circle cx="520" cy="215" r="92" fill="rgba(84,214,255,0.07)" stroke="rgba(84,214,255,0.18)" stroke-width="2" />
+                    <circle class="component-fill" cx="520" cy="215" r="70" />
+                    <circle cx="520" cy="215" r="52" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="8" stroke-dasharray="18 12" />
+                    <g id="rotor" class="rotor rotating">
+                        <line x1="475" y1="215" x2="565" y2="215" stroke="#ffcf5a" stroke-width="12" stroke-linecap="round" />
+                        <line x1="520" y1="170" x2="520" y2="260" stroke="#ffcf5a" stroke-width="12" stroke-linecap="round" />
+                        <circle cx="520" cy="215" r="13" fill="#10131a" stroke="#eef3ff" stroke-width="3" />
+                    </g>
+                    <circle class="terminal" cx="520" cy="145" r="7" />
+                    <circle class="terminal" cx="520" cy="285" r="7" />
+                    <text class="label" x="488" y="316">Motor DC</text>
+                    <text class="small-label" x="468" y="340">Kt*i - b*w - carga</text>
+
+                    <path d="M620 215 H690" stroke="#eef3ff" stroke-width="5" stroke-linecap="round" />
+                    <polygon points="690,215 668,202 668,228" fill="#eef3ff" />
+                    <text class="small-label" x="620" y="196">Eje</text>
+                </svg>
+
+                <div class="pid-grid">
+                    <svg class="block-diagram" viewBox="0 0 760 170" role="img" aria-label="Diagrama de bloques del controlador Fuzzy para el motor DC">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#eef3ff" />
+                            </marker>
+                        </defs>
+                        <line x1="35" y1="85" x2="108" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <circle cx="132" cy="85" r="22" fill="#111827" stroke="#eef3ff" stroke-width="3" />
+                        <text class="label" x="126" y="91">+</text>
+                        <text class="small-label" x="36" y="72">w ref</text>
+                        <line x1="154" y1="85" x2="220" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <rect x="220" y="48" width="128" height="74" rx="14" fill="#121826" stroke="#54d6ff" stroke-width="3" />
+                        <text class="label" x="267" y="80">Fuzzy</text>
+                        <text class="small-label" x="244" y="103">25 reglas</text>
+                        <line x1="348" y1="85" x2="430" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <rect x="430" y="48" width="154" height="74" rx="14" fill="#121826" stroke="#ffcf5a" stroke-width="3" />
+                        <text class="label" x="462" y="80">Motor DC</text>
+                        <text class="small-label" x="458" y="103">electrico + mecanico</text>
+                        <line x1="584" y1="85" x2="715" y2="85" stroke="#eef3ff" stroke-width="3" marker-end="url(#arrow)" />
+                        <text class="small-label" x="642" y="72">w</text>
+                        <path d="M650 85 V145 H132 V109" fill="none" stroke="#9ba8bd" stroke-width="3" marker-end="url(#arrow)" />
+                        <text class="small-label" x="146" y="129">- realimentacion</text>
+                    </svg>
+
+                    
+                </div>
+
+            </article>
+
+            <article class="card motor-card">
+                <div class="panel-title">
+                    <h2>Motor 3D</h2>
+                    <span class="status" id="motorState">Giro activo</span>
+                </div>
+
+                <div class="motor-stage">
+                    <canvas id="fan3d" aria-label="Motor DC tridimensional con carcasa, bornes y eje animado"></canvas></div><div class="motor-meta">
+                    <div class="motor-chip">Velocidad 3D<strong id="motorSpeed3d">0.0 RPM</strong></div>
+                    <div class="motor-chip">Voltaje aplicado<strong id="motorVoltage3d">0.0 V</strong></div>
+                </div>
+            </article>
+
+            <article class="card charts-card">
+                <div class="panel-title">
+                    <h2>Respuesta del Fuzzy</h2>
+                    <span class="status" id="controlText">Control: 0.0 V</span>
+                </div>
+
+                <div class="readouts">
+                    <div class="readout">
+                        <span>Tiempo</span>
+                        <strong id="timeValue">0.00 s</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Referencia</span>
+                        <strong id="targetValue">20.0 RPM</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Velocidad</span>
+                        <strong id="speedValue">0.000 RPM</strong>
+                    </div>
+                    <div class="readout">
+                        <span>Corriente</span>
+                        <strong id="currentValue">0.000 A</strong>
+                    </div>
+                </div>
+
+                <div class="charts">
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>Velocidad vs referencia</strong>
+                            <span>Ultimos 12 s</span>
+                        </div>
+                        <canvas id="speedChart" width="620" height="220" aria-label="Grafica de velocidad y referencia"></canvas>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>PWM aplicado</strong>
+                            <span>Ciclo útil 0–100 %</span>
+                        </div>
+                        <canvas id="controlChart" width="620" height="220" aria-label="Gráfica del ciclo útil PWM"></canvas>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-head">
+                            <strong>Corriente</strong>
+                            <span>Esfuerzo electrico</span>
+                        </div>
+                        <canvas id="currentChart" width="620" height="220" aria-label="Grafica de corriente"></canvas>
+                    </div>
+                </div>
+            </article>
+
+            <aside class="card control-card">
+                <div class="panel-title">
+                    <h2>Controles</h2>
+                </div>
+
+                <div class="controls">
+                    <h3 class="control-section-title">CONDICIONES DEL MOTOR</h3>
+                    <div class="control">
+                        <label for="targetSpeed">Velocidad objetivo <output id="targetOut">20.0 RPM</output></label>
+                        <input id="targetSpeed" type="range" min="0" max="200" step="1" value="100">
+                    </div>
+
+                    <div class="control">
+                        <label for="voltage">Voltaje maximo <output id="voltageOut">24.0 V</output></label>
+                        <input id="voltage" type="range" min="0" max="24" step="0.1" value="24">
+                    </div>
+
+                    <div class="control">
+                        <label for="loadTorque">Torque de carga <output id="loadOut">0.000 Nm</output></label>
+                        <input id="loadTorque" type="range" min="0" max="0.1" step="0.001" value="0">
+                    </div>
+
+                    <div class="control">
+                        <label for="resistance">Resistencia <output id="resistanceOut">1.00 Ohm</output></label>
+                        <input id="resistance" type="range" min="0.2" max="5" step="0.05" value="1">
+                    </div>
+                    <h3 class="control-section-title">AJUSTE FUZZY</h3>
+
+                    <div class="control">
+                        <label for="kp">Escala error <output id="kpOut">1.20</output></label>
+                        <input id="kp" type="range" min="10" max="200" step="5" value="100">
+                    </div>
+
+                    <div class="control">
+                        <label for="ki">Escala Δerror <output id="kiOut">0.80</output></label>
+                        <input id="ki" type="range" min="20" max="500" step="10" value="200">
+                    </div>
+
+                    <div class="control">
+                        <label for="kd">Rapidez PWM <output id="kdOut">0.04</output></label>
+                        <input id="kd" type="range" min="0" max="100" step="5" value="60">
+                    </div>
+
+                    <div class="buttons">
+                        <button id="toggleBtn" type="button">Pausar</button>
+                        <button class="secondary" id="resetBtn" type="button">Reiniciar</button>
+                    </div>
+                </div>
+
+<button id="modelBtn" class="secondary">Modelo y funcionamiento</button><p id="fuzzyStatus" role="status">Inferencia Sugeno · 25 reglas</p>
+            </aside>
+
+        </section>
+    </main>
+
+<dialog id="rulesDialog"><h2>Reglas del controlador Fuzzy</h2><p>Filas: error normalizado. Columnas: variación del error normalizada. NG: negativo grande, NP: negativo pequeño, Z: cero, PP: positivo pequeño, PG: positivo grande.</p><div id="rulesTable"></div><p>Los números son incrementos normalizados del PWM: negativos reducen la salida y positivos la aumentan. Las reglas activas se resaltan durante la simulación.</p><p>Conjuntos triangulares en −1, −0,5, 0, 0,5 y 1, con extremos saturados. Activación por producto y salida por media ponderada (Sugeno de orden cero).</p><form method="dialog"><button>Cerrar</button></form></dialog>
+<dialog id="modelDialog"><h2>Modelo y funcionamiento</h2><p>e = referencia − RPM. Δe/Δt se expresa en RPM/s. Cada entrada se divide por su escala y se limita a [−1, 1]. La salida difusa z modifica el ciclo útil: duty = limitar(duty + z × rapidez/100 × Δt, 0, 1).</p><p>V = duty × Vmáx; L di/dt = V − Ri − Keω; J dω/dt = Kt i − bω − carga.</p><p>R ajustable; L = 0,5 H; Ke = Kt = 0,01; J = 0,01 kg·m²; b = 0,01 N·m·s/rad. Velocidad interna en rad/s y presentación en RPM. Integración a pasos de 1 ms, controlador cada 20 ms. La carga se opone al giro y no fuerza una inversión en reposo.</p><p>Este es un modelo educativo; no predice cuantitativamente el motorreductor amarillo. Referencia cero desactiva el mando; el motor desacelera según el modelo.</p><form method="dialog"><button>Cerrar</button></form></dialog>
+<script src="fuzzy-core.js"></script><script>
+        const motor = {
+            R: 1.0,
+            L: 0.5,
+            Ke: 0.01,
+            Kt: 0.01,
+            J: 0.01,
+            b: 0.01,
+            current: 0,
+            speed: 0,
+            time: 0
+        };
+
+const fuzzy = new Fuzzy.Controller();
+const pid = {output:0};
+const RPM = 60 / (2*Math.PI);
+let controlClock=0, wallAccumulator=0;
+const evaluation=[];
+const defaults={targetSpeed:100,voltage:24,loadTorque:0,resistance:1,kp:100,ki:200,kd:60};
+        const elements = {
+            targetSpeed: document.getElementById('targetSpeed'),
+            voltage: document.getElementById('voltage'),
+            loadTorque: document.getElementById('loadTorque'),
+            resistance: document.getElementById('resistance'),
+            kp: document.getElementById('kp'),
+            ki: document.getElementById('ki'),
+            kd: document.getElementById('kd'),
+            targetOut: document.getElementById('targetOut'),
+            voltageOut: document.getElementById('voltageOut'),
+            loadOut: document.getElementById('loadOut'),
+            resistanceOut: document.getElementById('resistanceOut'),
+            kpOut: document.getElementById('kpOut'),
+            kiOut: document.getElementById('kiOut'),
+            kdOut: document.getElementById('kdOut'),
+            timeValue: document.getElementById('timeValue'),
+            targetValue: document.getElementById('targetValue'),
+            currentValue: document.getElementById('currentValue'),
+            speedValue: document.getElementById('speedValue'),
+            controlText: document.getElementById('controlText'),
+            motorState: document.getElementById('motorState'),
+            motorSpeed3d: document.getElementById('motorSpeed3d'),
+            motorVoltage3d: document.getElementById('motorVoltage3d'),
+            toggleBtn: document.getElementById('toggleBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            rotor: document.getElementById('rotor'),
+            fan3d: document.getElementById('fan3d'),
+            currentPath: document.getElementById('currentPath'),
+            stateText: document.getElementById('stateText'),
+            currentChart: document.getElementById('currentChart'),
+            controlChart: document.getElementById('controlChart'),
+            speedChart: document.getElementById('speedChart')
+        };
+
+        const history = [];
+        const historyDuration = 12;
+        const chartColors = {
+            current: '#54d6ff',
+            speed: '#ffcf5a',
+            target: '#9dff7a',
+            control: '#ff6b6b',
+            grid: 'rgba(238, 243, 255, 0.08)',
+            axis: 'rgba(238, 243, 255, 0.34)',
+            text: 'rgba(238, 243, 255, 0.74)'
+        };
+
+        let running = true;
+        let lastFrame = performance.now();
+        let lastSampleTime = 0;
+
+        function updateControls() {
+            motor.R = Number(elements.resistance.value);
+
+            elements.targetOut.textContent = `${Number(elements.targetSpeed.value).toFixed(1)} RPM`;
+            elements.voltageOut.textContent = `${Number(elements.voltage.value).toFixed(1)} V`;
+            elements.loadOut.textContent = `${Number(elements.loadTorque.value).toFixed(3)} Nm`;
+            elements.resistanceOut.textContent = `${motor.R.toFixed(2)} Ohm`;
+            elements.kpOut.textContent = `${elements.kp.value} RPM`;
+            elements.kiOut.textContent = `${elements.ki.value} RPM/s`;
+            elements.kdOut.textContent = `${elements.kd.value} %/s`;
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+function updatePid(dt) {
+  pid.output=fuzzy.step(Number(elements.targetSpeed.value),motor.speed*RPM,dt,Number(elements.kp.value),Number(elements.ki.value),Number(elements.kd.value))*Number(elements.voltage.value);
+}
+        function stepSimulation(dt) {
+            controlClock += dt;
+            if(controlClock >= .02-1e-9){updatePid(.02);controlClock -= .02;}
+            const voltage = pid.output;
+            const loadTorque = Number(elements.loadTorque.value);
+            const diDt = (voltage - motor.R * motor.current - motor.Ke * motor.speed) / motor.L;
+            const dwDt = (motor.Kt * motor.current - motor.b * motor.speed - loadTorque) / motor.J;
+
+            motor.current += diDt * dt;
+            motor.speed = Math.max(0, motor.speed + dwDt * dt);
+            motor.time += dt;
+            motorView.angle = (motorView.angle + motor.speed * dt) % (Math.PI * 2);
+
+            if (motor.time - lastSampleTime >= 0.04) {
+                history.push({
+                    time: motor.time,
+                    current: motor.current,
+                    speed: motor.speed*RPM,
+                    target: Number(elements.targetSpeed.value),
+                    control: fuzzy.duty*100
+                });
+                evaluation.push({...history[history.length-1],error:Number(elements.targetSpeed.value)-motor.speed*RPM});
+                if(evaluation.length>15000)evaluation.shift();
+                lastSampleTime = motor.time;
+
+                while (history.length > 0 && motor.time - history[0].time > historyDuration) {
+                    history.shift();
+                }
+            }
+        }
+
+        function resizeCanvas(canvas) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = window.devicePixelRatio || 1;
+            const width = Math.max(1, Math.floor(rect.width * scale));
+            const height = Math.max(1, Math.floor(rect.height * scale));
+
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+
+            return { width, height, scale };
+        }
+
+        function drawChart(canvas, key, color, unit, referenceKey = null, referenceColor = chartColors.target) {
+            const { width, height, scale } = resizeCanvas(canvas);
+            const ctx = canvas.getContext('2d');
+            const padding = 34 * scale;
+            const graphWidth = width - padding * 1.55;
+            const graphHeight = height - padding * 1.45;
+            const left = padding;
+            const top = padding * 0.55;
+            const bottom = top + graphHeight;
+            const visible = history.filter((point) => motor.time - point.time <= historyDuration);
+            const values = visible.map((point) => point[key]);
+            const referenceValues = referenceKey ? visible.map((point) => point[referenceKey]) : [];
+            const maxAbs = key === "control" ? 100 : Math.max(key === "speed" ? 200 : 0.1, ...values.map((value) => Math.abs(value)), ...referenceValues.map((value) => Math.abs(value))) * 1.15;
+            const startTime = Math.max(0, motor.time - historyDuration);
+
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#07101b';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.strokeStyle = chartColors.grid;
+            ctx.lineWidth = 1 * scale;
+            for (let index = 0; index <= 4; index += 1) {
+                const x = left + (graphWidth * index) / 4;
+                const y = top + (graphHeight * index) / 4;
+                ctx.beginPath();
+                ctx.moveTo(x, top);
+                ctx.lineTo(x, bottom);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(left, y);
+                ctx.lineTo(left + graphWidth, y);
+                ctx.stroke();
+            }
+
+            const zeroY = bottom - 0 * graphHeight;
+            ctx.strokeStyle = chartColors.axis;
+            ctx.lineWidth = 1.5 * scale;
+            ctx.beginPath();
+            ctx.moveTo(left, zeroY);
+            ctx.lineTo(left + graphWidth, zeroY);
+            ctx.stroke();
+
+            ctx.fillStyle = chartColors.text;
+            ctx.font = `${13 * scale}px Arial`;
+            ctx.fillText(unit, width - 48*scale, top - 5*scale);
+            for(let k=0;k<=4;k++){ctx.fillText((maxAbs*k/4).toFixed(1),4*scale,bottom-graphHeight*k/4);ctx.fillText((startTime+historyDuration*k/4).toFixed(0)+'s',left+graphWidth*k/4-8*scale,height-3*scale);}
+
+            if (visible.length > 1) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3.2 * scale;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 12 * scale;
+                ctx.beginPath();
+
+                visible.forEach((point, index) => {
+                    const x = left + ((point.time - startTime) / historyDuration) * graphWidth;
+                    const y = bottom - (point[key] / maxAbs) * graphHeight;
+
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                const latest = visible[visible.length - 1];
+                const latestX = left + ((latest.time - startTime) / historyDuration) * graphWidth;
+                const latestY = bottom - (latest[key] / maxAbs) * graphHeight;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(latestX, latestY, 4.5 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = chartColors.text;
+                ctx.font = `${12 * scale}px Arial`;
+                ctx.fillText(`${latest[key].toFixed(2)} ${unit}`, Math.min(latestX + 8 * scale, width - 92 * scale), latestY - 8 * scale);
+            }
+
+            if (referenceKey && visible.length > 1) {
+                ctx.strokeStyle = referenceColor;
+                ctx.lineWidth = 2 * scale;
+                ctx.setLineDash([7 * scale, 7 * scale]);
+                ctx.beginPath();
+
+                visible.forEach((point, index) => {
+                    const x = left + ((point.time - startTime) / historyDuration) * graphWidth;
+                    const y = bottom - (point[referenceKey] / maxAbs) * graphHeight;
+
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+const motorView = { angle: 0 };
+function drawMotor() {
+    const canvas = elements.fan3d;
+    const { width, height, scale } = resizeCanvas(canvas);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+    const zoom = Math.min(width / 6.6, height / 3.9);
+    const project = ([x,y,z]) => {
+        const a = -0.48, b = 0.30;
+        const xx = x*Math.cos(a)+z*Math.sin(a);
+        const zz = -x*Math.sin(a)+z*Math.cos(a);
+        const yy = y*Math.cos(b)-zz*Math.sin(b);
+        const depth = y*Math.sin(b)+zz*Math.cos(b);
+        return [width*.52+xx*zoom, height*.48-yy*zoom, depth];
+    };
+    const shadow = ctx.createRadialGradient(width*.5,height*.79,0,width*.5,height*.79,width*.4);
+    shadow.addColorStop(0,'rgba(0,0,0,.65)'); shadow.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=shadow;ctx.fillRect(0,height*.62,width,height*.3);
+    const faces=[];
+    function face(points,color) {
+        const p=points.map(project);
+        faces.push({p,color,depth:p.reduce((s,v)=>s+v[2],0)/p.length});
+    }
+    function cylinder(x0,x1,r,color,cy=0,cz=0,n=64) {
+        const left=[],right=[];
+        for(let i=0;i<n;i++) {
+            const a=i*2*Math.PI/n,b=(i+1)*2*Math.PI/n;
+            const p=[x0,cy+r*Math.cos(a),cz+r*Math.sin(a)];
+            const q=[x1,p[1],p[2]];
+            left.push(p);right.push(q);
+            const light=.48+.47*Math.max(0,Math.cos(a-.65));
+            const shade=color.map(c=>Math.round(c*light));
+            face([p,q,[x1,cy+r*Math.cos(b),cz+r*Math.sin(b)],[x0,cy+r*Math.cos(b),cz+r*Math.sin(b)]],`rgb(${shade})`);
+        }
+        face(left,`rgb(${color.map(c=>Math.round(c*.78))})`);
+        face(right,`rgb(${color.map(c=>Math.round(c*.55))})`);
+    }
+    function box(x0,x1,y0,y1,z0,z1,color) {
+        const p=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+        [[0,1,2,3],[4,7,6,5],[0,4,5,1],[3,2,6,7],[0,3,7,4],[1,5,6,2]].forEach((f,i)=>face(f.map(j=>p[j]),`rgb(${color.map(c=>Math.round(c*(.60+i*.065)))})`));
+    }
+    // Closed cylindrical geometry: steel housing, end bells, bearing and shaft.
+    box(-1.25,1.15,-1.20,-1.04,-.76,.76,[90,110,133]);
+    box(-.92,-.57,-1.08,-.68,-.57,.57,[123,143,161]);
+    box(.64,.98,-1.08,-.68,-.57,.57,[123,143,161]);
+    cylinder(-1.35,1.30,.87,[201,215,226]);
+    cylinder(1.28,1.53,.80,[58,72,91]);
+    cylinder(-1.53,-1.34,.90,[144,164,182]);
+    cylinder(-1.58,-1.53,.73,[191,207,219]);
+    cylinder(-1.76,-1.58,.32,[100,123,146]);
+    cylinder(-2.57,-1.76,.13,[222,234,242]);
+    cylinder(-2.61,-2.54,.15,[158,184,203]);
+    // Machined housing bands and front fasteners.
+    [-1.20,1.10].forEach(x=>cylinder(x,x+.055,.88,[111,133,151]));
+    for(let i=0;i<4;i++) {
+        const a=Math.PI/4+i*Math.PI/2;
+        cylinder(-1.62,-1.58,.065,[60,77,94],.60*Math.cos(a),.60*Math.sin(a),12);
+    }
+    // Rear ventilation slots and insulated electrical terminals.
+    for(let i=0;i<12;i++) {
+        const a=i*Math.PI/6;
+        cylinder(1.53,1.545,.07,[17,25,37],.60*Math.cos(a),.60*Math.sin(a),10);
+    }
+    box(.75,1.2,.75,1.02,-.3,.3,[35,47,63]);
+    box(.80,.92,1.02,1.20,-.23,-.08,[226,85,72]);
+    box(1.01,1.13,1.02,1.20,.08,.23,[65,77,92]);
+    // A rotating shaft key makes the rotation visible without rotating the housing.
+    const a=motorView.angle;
+    const key=[];
+    for(const x of [-2.49,-1.91]) for(const t of [a-.18,a+.18]) key.push([x,.145*Math.cos(t),.145*Math.sin(t)]);
+    face([key[0],key[1],key[3],key[2]],'#54d6ff');
+    faces.sort((a,b)=>a.depth-b.depth);
+    for(const f of faces) {
+        ctx.beginPath();f.p.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+        ctx.fillStyle=f.color;ctx.fill();ctx.strokeStyle=f.color;ctx.lineWidth=.45*scale;ctx.stroke();
+    }
+    ctx.font=`600 ${10*scale}px Arial`;ctx.fillStyle='#9ba8bd';
+    ctx.fillText('DC  /  ARMADURA DE IMÁN PERMANENTE',16*scale,height-16*scale);
+}
+
+        function render() {
+            const targetSpeed = Number(elements.targetSpeed.value);
+            elements.timeValue.textContent = `${motor.time.toFixed(2)} s`;
+            elements.targetValue.textContent = `${targetSpeed.toFixed(1)} RPM`;
+            elements.currentValue.textContent = `${motor.current.toFixed(3)} A`;
+            elements.speedValue.textContent = `${(motor.speed*RPM).toFixed(1)} RPM`;
+            elements.controlText.textContent = `PWM: ${(fuzzy.duty*100).toFixed(1)} %`;
+            elements.motorSpeed3d.textContent = `${(motor.speed*RPM).toFixed(1)} RPM`;
+            elements.motorVoltage3d.textContent = `${pid.output.toFixed(1)} V`;
+            elements.motorState.textContent = running ? (Math.abs(motor.speed) > 0.01 ? 'Giro activo' : 'Detenido') : 'Pausado';
+
+            document.getElementById('fuzzyStatus').textContent='Error: '+(targetSpeed-motor.speed*RPM).toFixed(1)+' RPM · ΔPWM: '+(fuzzy.last.value*Number(elements.kd.value)).toFixed(1)+' %/s'+(fuzzy.duty>=.999?' · Salida saturada':'');
+            if(document.getElementById('rulesDialog').open){document.querySelectorAll('#rulesTable td').forEach(c=>c.style.background='');for(const r of fuzzy.last.active)document.getElementById('rule-'+r.i+'-'+r.j).style.background='rgba(84,214,255,'+(.12+r.w*.7)+')';}
+            drawMotor();
+            const speedAbs = Math.abs(motor.speed);
+            const spinDuration = Math.max(0.12, 1.8 / Math.max(speedAbs, 0.2));
+            const flowDuration = Math.max(0.18, 1.4 / Math.max(Math.abs(motor.current), 0.2));
+            elements.rotor.style.setProperty('--spin-duration', `${spinDuration}s`);
+            elements.fan3d.style.setProperty('--spin-duration', `${spinDuration}s`);
+            elements.currentPath.style.setProperty('--flow-duration', `${flowDuration}s`);
+            elements.currentPath.style.opacity = Math.min(1, 0.25 + Math.abs(motor.current) / 12);
+
+            drawChart(elements.speedChart, 'speed', chartColors.speed, 'RPM', 'target');
+            drawChart(elements.controlChart, 'control', chartColors.control, '%');
+            drawChart(elements.currentChart, 'current', chartColors.current, 'A');
+        }
+
+        function animate(now) {
+            const elapsed = Math.min((now - lastFrame) / 1000, 0.05);
+            lastFrame = now;
+
+            if (running) {
+                wallAccumulator += elapsed;
+                while(wallAccumulator >= .001){stepSimulation(.001);wallAccumulator-=.001;}
+            }
+
+            render();
+            requestAnimationFrame(animate);
+        }
+
+        function resetSimulation() {
+            motor.current = 0;
+            motor.speed = 0;
+            motor.time = 0;
+            motorView.angle = 0;
+            fuzzy.reset(); controlClock=0; wallAccumulator=0; evaluation.length=0;
+            pid.output = 0;
+            history.length = 0;
+            lastSampleTime = 0;
+            render();
+        }
+
+        function toggleSimulation() {
+            running = !running;
+            elements.toggleBtn.textContent = running ? 'Pausar' : 'Continuar';
+            elements.stateText.textContent = running ? 'Simulando' : 'Pausado';
+            elements.rotor.classList.toggle('paused', !running);
+            elements.fan3d.classList.toggle('paused', !running);
+            elements.currentPath.classList.toggle('paused', !running);
+            lastFrame = performance.now();
+        }
+
+        elements.targetSpeed.addEventListener('input', updateControls);
+        elements.voltage.addEventListener('input', updateControls);
+        elements.loadTorque.addEventListener('input', updateControls);
+        elements.resistance.addEventListener('input', updateControls);
+        elements.kp.addEventListener('input', updateControls);
+        elements.ki.addEventListener('input', updateControls);
+        elements.kd.addEventListener('input', updateControls);
+        elements.resetBtn.addEventListener('click', resetSimulation);
+        elements.toggleBtn.addEventListener('click', toggleSimulation);
+
+document.getElementById('rulesTable').innerHTML='<table><thead><tr><th>e / Δe</th>'+Fuzzy.labels.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+Fuzzy.rules.map((row,i)=>'<tr><th>'+Fuzzy.labels[i]+'</th>'+row.map((x,j)=>'<td id="rule-'+i+'-'+j+'">'+x.toFixed(1)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+function showPanel(real){
+  document.getElementById('hardwarePanel').hidden=!real;document.getElementById('simulationPanel').hidden=real;
+  document.getElementById('simulationTab').setAttribute('aria-pressed',String(!real));document.getElementById('hardwareTab').setAttribute('aria-pressed',String(real));
+  if(real&&running)toggleSimulation();
+}
+document.getElementById('hardwareTab').onclick=()=>{if(running)toggleSimulation();window.location.href='fuzzy-motor.html';};
+document.getElementById('simulationTab').onclick=()=>showPanel(false);
+document.getElementById('returnBtn').onclick=()=>showPanel(false);
+document.getElementById('rulesBtn').onclick=()=>document.getElementById('rulesDialog').showModal();
+document.getElementById('modelBtn').onclick=()=>document.getElementById('modelDialog').showModal();
+document.getElementById('defaultsBtn').onclick=()=>{for(const [id,v]of Object.entries(defaults))elements[id].value=v;updateControls();resetSimulation();};
+document.getElementById('exportBtn').onclick=()=>{
+ const rows=['tiempo_s,referencia_rpm,velocidad_rpm,error_rpm,pwm_porcentaje,corriente_A',...evaluation.map(p=>[p.time,p.target,p.speed,p.error,p.control,p.current].map(x=>x.toFixed(5)).join(','))];
+ const url=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='simulacion-fuzzy.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+elements.targetSpeed.addEventListener('input',()=>{fuzzy.previousError=null;if(Number(elements.targetSpeed.value)===0){fuzzy.duty=0;pid.output=0;}});
+document.addEventListener('visibilitychange',()=>{lastFrame=performance.now();wallAccumulator=0;});
+        updateControls();
+        render();
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
+
+
+
+

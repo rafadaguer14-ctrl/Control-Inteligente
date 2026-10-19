@@ -684,11 +684,12 @@
  .control-card button{min-height:30px;padding:6px}
 }
 .control-card .buttons{grid-template-columns:1fr 1fr;gap:6px}.control-card #defaultsBtn{font-size:.72rem;padding:5px;line-height:1.2}</style>
+<link rel="stylesheet" href="pid-learning.css">
 </head>
 <body>
     <main>
         <h1>Control PID · Motor DC</h1>
-        <p class="subtitle"><button id="connectBtn">Conectar ESP32</button> <button id="disconnectBtn" disabled>Desconectar</button> <a href="simulacion_motor_dc.html" target="_blank" rel="noopener">Simulación ↗</a> <span id="connectionNote" role="status">Montaje físico · cierra el Monitor Serial y conecta por USB.</span></p>
+        <p class="subtitle"><a href="red-neuronal.html" style="color:#54d6ff;margin-right:12px">Red neuronal ↗</a> <a href="regresion.html" style="color:#54d6ff;margin-right:12px">Regresión lineal ↗</a> <a href="fuzzy.html" style="color:#54d6ff;margin-right:12px">Control Fuzzy ↗</a> <button id="connectBtn">Conectar ESP32</button> <button id="disconnectBtn" disabled>Desconectar</button> <a href="simulacion_motor_dc.html" target="_blank" rel="noopener">Simulación ↗</a> <span id="connectionNote" role="status">Montaje físico · cierra el Monitor Serial y conecta por USB.</span></p>
 
         <section class="layout">
             <article class="card circuit-card">
@@ -891,7 +892,9 @@
         </section>
     </main>
 
-    <script src="montaje.js?v=3.2"></script>
+    <script src="montaje.js?v=5"></script>
+<script src="pid-learning-core.js"></script>
+<script src="pid-learning.js"></script>
 </body>
 </html>
 

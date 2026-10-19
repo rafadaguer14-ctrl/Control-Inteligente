@@ -1,0 +1,6 @@
+const R=require('./regression-core.js'),assert=require('assert');
+assert.deepEqual(R.parseCSV('\ufeff"a";"b"\r\n"1,5";2\r\n"3";4').headers,['a','b']);assert.equal(R.numeric('1,5',true),1.5);assert.equal(R.numeric(''),null);assert.equal(R.numeric('12abc'),null);assert.throws(()=>R.parseCSV('a,b\n1,2,3'));assert.throws(()=>R.parseCSV('a,a\n1,2'));assert.throws(()=>R.parseCSV('a,b\n"x,2'));
+const X=Array.from({length:30},(_,i)=>[i,Math.sin(i)]),y=X.map(([a,b])=>4+3*a-2*b);let m=R.fit(X,y);assert(Math.abs(m.predict([7,.2])-24.6)<1e-9);assert(Math.abs(m.coefficients[1]+2)<1e-9);assert.throws(()=>R.fit(X.map(r=>[r[0],2*r[0]]),y));assert.throws(()=>R.fit(X.map(()=>[1]),y));
+for(const [df,v]of [[1,12.7062],[2,4.30265],[10,2.22814],[100,1.98397]]){const t=R.tCritical(df);assert(Math.abs(t-v)<.0001,df+':'+t);}
+m=R.fit(X,X.map(([a,b],i)=>4+3*a-2*b+Math.cos(i)));const inside=m.interval([15,0]),outside=m.interval([300,0]);assert(outside.outside);assert(outside.high-outside.low>inside.high-inside.low);const metric=R.metrics([1,2,3],[2,2,2]);assert.equal(metric.mae,2/3);assert.equal(metric.mse,2/3);assert.equal(metric.r2,0);assert.equal(R.metrics([2,2],[1,3]).r2,null);assert.deepEqual(R.split(20),R.split(20));console.log('PASS CSV, numeric parsing, multivariable coefficients, collinearity, metrics, t intervals, extrapolation, repeatable split.');
+

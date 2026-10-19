@@ -1,0 +1,17 @@
+#fuzzyDiagram{width:min(1120px,96vw);max-height:92dvh;padding:20px;border:1px solid #456078;border-radius:18px;background:#101927;color:#eef3ff;overflow:auto;box-shadow:0 20px 80px #0009}
+#fuzzyDiagram::backdrop{background:#020710bb}
+#fuzzyDiagram .fv-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#fuzzyDiagram p{color:#b9c7d9;line-height:1.5;font-size:.85rem}
+#fuzzyDiagram .fv-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#fuzzyDiagram article{min-width:0;background:#162335;border:1px solid #304259;border-radius:12px;padding:12px}
+#fuzzyDiagram h3{font-size:1rem;margin:0 0 8px}
+#fuzzyDiagram svg{display:block;width:100%;height:auto;background:#0d1623;border-radius:8px}
+#fuzzyDiagram .fv-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;margin:8px 0}
+#fuzzyDiagram .fv-table{overflow:auto}
+#fuzzyDiagram table{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums}
+#fuzzyDiagram th,#fuzzyDiagram td{text-align:center;padding:8px 5px;border:1px solid #405168}
+#fuzzyDiagram td small{display:block;color:#d4e3f5;margin-top:4px}
+#fuzzyDiagram .fv-status{padding:8px 12px;background:#20344b;border-radius:8px}
+#fuzzyDiagram code{color:#ffcf5a;white-space:normal}
+#fuzzyDiagram #fvOutput{font-size:1.1rem;color:#eef3ff}
+@media(max-width:720px){#fuzzyDiagram .fv-grid{grid-template-columns:1fr}#fuzzyDiagram{padding:12px}}

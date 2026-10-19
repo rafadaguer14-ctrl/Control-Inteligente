@@ -1,0 +1,46 @@
+{
+  "sha256_dataset": "53a23b984f925a824c960a39d595d6513fe4f2b938bca7daa4f1da93b2615c12",
+  "desarrollo_30_ids": [
+    "4e3737fe-b175-4a01-b8bb-f713ab295089",
+    "80f777da-c034-4376-9a39-6a95168835a2",
+    "dded0070-fb6b-4907-b6d7-2e5d9a42eec8",
+    "b307942f-ca3f-4967-bdca-4e1709782791",
+    "4cf97c2a-4882-44ae-8457-060252918da4",
+    "7de8b364-e9d2-4ed8-b914-e61039d39f83",
+    "c1f93d98-2d3e-4703-b475-f8de69db39d5",
+    "02cd4862-fc9f-4e76-95d1-5f7000946932",
+    "255c7bab-8553-4477-a56d-3fad03b536f9",
+    "d527b27f-d44f-4aa3-920f-fd56cb83696c",
+    "e95aafb4-d094-4584-b103-c30d58902695",
+    "bef3c496-b4f4-43b9-ad8c-1d666aec0e90",
+    "d20346a1-9caf-46d9-a513-4f86b5705f6a",
+    "e7e3ab73-057a-4553-bde7-c102b60d9f62",
+    "c9723e5b-eaf8-41d2-bb4b-f0e52111f4a8",
+    "e2ced39e-50d9-45c8-8537-301de2a99f40",
+    "e68d935d-aae0-4f43-b0dd-448f9e811aab",
+    "7e62b89f-ac68-4fdf-b693-6f7663ca2391",
+    "18e3e978-1a1e-4433-b1f1-d8aa8337b491",
+    "7f5de961-01a6-44f1-90ec-3ea126a3f234",
+    "dee58f25-0ab5-4955-8a94-ec8bfbed23e7",
+    "37dd327a-556a-4560-9c79-3e3ce56a74ef",
+    "5e0d09a4-f727-4b0c-b4a2-baf26ee55755",
+    "d55ca510-ce8c-4728-afa6-8eb2fe165bd3",
+    "5bd0eb34-84e0-4251-9561-3de33f61f68c",
+    "dacfd211-5c1d-4829-98a3-3a70f90a62fc",
+    "3f320120-8c11-435e-8490-63154655bb11",
+    "0982d614-4c24-4b60-9081-6738c0c653d6",
+    "31842ea0-46e7-484b-816c-02991958e99f",
+    "5af81045-7856-4398-a30b-831b7e80ad5b"
+  ],
+  "validacion_primera_recomendacion_ids": [
+    "d9fd3912-e39c-43ec-add4-079488b0b1aa",
+    "ac8e9cb6-76cf-4947-b338-b87e03d85c7f",
+    "d5b6dd57-7f3d-4b62-b542-ab473d3b9c2f"
+  ],
+  "posteriores_ids": [
+    "4e792ccd-ee74-4c3f-9be5-2b0e929e4f61",
+    "eb8b4798-a1a3-4ee2-952e-8f9dc81db185",
+    "acc8bd3e-8eba-408f-ab97-238f32b5a272"
+  ],
+  "nota": "Se conserva el orden del JSON. Agrupar por referencia y ganancias confirmadas, no por etiqueta."
+}

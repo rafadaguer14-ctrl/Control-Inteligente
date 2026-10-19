@@ -1,3 +1,5 @@
+let heartbeatBusy=false;
+let experimentBusy=false;
 'use strict';
 const $=id=>document.getElementById(id),elements={fan3d:$('fan3d')};
 let port=null,reader=null,readTask=null,closing=false,queue=Promise.resolve(),lastData=0,latest=null,epoch=0,lastFrame=performance.now(),pot=false,ready=false;
@@ -7,22 +9,29 @@ const percentText=value=>percent(value).toFixed(1)+' %';
 const sliders=['targetSpeed','kp','ki','kd'];
 function note(s){$('connectionNote').textContent=s;}
 function fresh(){return !!port&&lastData>0&&performance.now()-lastData<2000;}
-function parse(line){const d={};for(const m of line.matchAll(/([A-Za-z][A-Za-z0-9]*):([^\s]+)/g))d[m[1]]=m[2];for(const k of ['Ref','RPM','PWM','PID','Pert','Cruda','Bruta','N250','Desc250']){if(d[k]===undefined||!Number.isFinite(Number(d[k])))return null;d[k]=Number(d[k]);}if(d.V==='3'&&!['P','I','D','Suma','Kp','Ki','Kd'].every(k=>d[k]!==undefined&&Number.isFinite(Number(d[k]))))return null;if(!['ACTIVO','PARADO','FALLO','TEST'].includes(d.Estado))return null;for(const k of ['P','I','D','Suma','Kp','Ki','Kd'])if(d[k]!==undefined)d[k]=Number(d[k]);return d;}
+function parse(line){const d={};for(const m of line.matchAll(/([A-Za-z][A-Za-z0-9]*):([^\s]+)/g))d[m[1]]=m[2];
+ if(d.V!=='5'||d.Mode!=='PID')return null;
+ for(const k of ['Ref','RPM','PWM','PID','Pert','Cruda','Bruta','N250','Desc250','P','I','D','Suma','Kp','Ki','Kd','ES','DS','GS','EN','DEN','Z','Cmd']){if(d[k]===undefined||!Number.isFinite(Number(d[k])))return null;d[k]=Number(d[k]);}
+ if(d.Ref<0||d.Ref>200||d.PWM<0||d.PWM>255||!['ACTIVO','PARADO','FALLO'].includes(d.Estado))return null;
+ return d;
+}
 function updateLabel(id){$(id==='targetSpeed'?'targetOut':id+'Out').textContent=Number($(id).value).toFixed(id==='targetSpeed'?0:3)+(id==='targetSpeed'?' RPM':'');}
-function controls(){$('defaultsBtn').disabled=resetting||closing;for(const id of sliders.concat('potBtn'))$(id).disabled=resetting||!ready||!fresh();$('resetBtn').disabled=!port||closing;$('connectBtn').disabled=!!port;$('disconnectBtn').disabled=!port||closing;}
-function receive(line){const d=parse(line);if(!d){if(/^(Ganancias:|FALLO:|ERROR|Fallo:)/.test(line))note(line);return;}latest=d;lastData=performance.now();if(d.V!=='3'){ready=false;note('Carga LecturaEncoder v3.0 para habilitar los controles en vivo.');controls();return;}
- if(!ready&&d.Ref===0&&d.PWM===0){ready=true;for(const [id,k] of [['kp','Kp'],['ki','Ki'],['kd','Kd']]){$(id).value=d[k];updateLabel(id);}note('Conectado · cambios en vivo · referencia inicial 0 RPM.');}
+function controls(){$('defaultsBtn').disabled=experimentBusy||resetting||closing;for(const id of sliders.concat('potBtn'))$(id).disabled=experimentBusy||resetting||!ready||!fresh();$('resetBtn').disabled=!port||closing;$('connectBtn').disabled=!!port;$('disconnectBtn').disabled=!port||closing;}
+function receive(line){const d=parse(line);if(!d){if(/^V:/.test(line)){ready=false;pending.clear();note("Esperando modo PID del firmware ControlMotor v5.");controls();}if(/^(Ganancias:|FALLO:|ERROR|Fallo:)/.test(line))note(line);return;}latest=d;lastData=performance.now();if(d.V!=='5'){ready=false;note('Carga ControlMotor v5 para habilitar los controles en vivo.');controls();return;}
+ if(!ready&&d.Ref===0&&d.PWM===0&&d.Estado==='PARADO'){ready=true;for(const [id,k] of [['kp','Kp'],['ki','Ki'],['kd','Kd']]){$(id).value=d[k];updateLabel(id);}note('Conectado · cambios en vivo · referencia inicial 0 RPM.');}
  const t=(lastData-epoch)/1000;history.push({...d,time:t});while(history.length&&t-history[0].time>duration)history.shift();
  for(const [id,text]of Object.entries({timeValue:t.toFixed(1)+' s',targetValue:d.Ref.toFixed(1)+' RPM',speedValue:d.RPM.toFixed(1)+' RPM',currentValue:(d.Ref-d.RPM).toFixed(1)+' RPM',controlText:'PWM '+percentText(d.PWM),motorSpeed3d:d.RPM.toFixed(1)+' RPM',motorVoltage3d:percentText(d.PWM),actualPWM:percentText(d.PWM),actualPert:percentText(d.Pert),quality:d.N250+' flancos · '+d.Desc250+' descartados',pTerm:percentText(d.P),iTerm:percentText(d.I),dTerm:percentText(d.D),sumTerm:percentText(d.Suma),confirmedGains:`Recibidos: Kp ${d.Kp.toFixed(3)} · Ki ${d.Ki.toFixed(3)} · Kd ${d.Kd.toFixed(3)}`}))$(id).textContent=text;
  pot=d.PotOn==='1';$('potBtn').textContent=pot?'Deshabilitar potenciómetro':'Habilitar potenciómetro';
  for(const [id,k]of [['targetSpeed','Ref'],['kp','Kp'],['ki','Ki'],['kd','Kd']]){if(desired.has(id)&&Math.abs(desired.get(id)-d[k])<.0005)desired.delete(id);}
+ window.dispatchEvent(new CustomEvent('pid-telemetry',{detail:{...d}}));
  if(d.Estado==='FALLO')note('FALLO del equipo. Detén y revisa el montaje.');controls();}
 function send(cmd,token=null){const p=port;if(!p||closing)return Promise.reject(Error('Sin conexión'));const task=queue.catch(()=>{}).then(async()=>{if(token!==null&&token!==generation)return;if(port!==p||!p.writable)throw Error('Conexión perdida');const w=p.writable.getWriter();try{await w.write(new TextEncoder().encode(cmd+'\n'));}finally{w.releaseLock();}});queue=task;return task;}
 function action(fn){return async()=>{try{await fn();}catch(e){note(e.message);}};}
 async function flush(){if(flushing||!pending.size)return;if(!ready||!fresh()){pending.clear();return;}flushing=true;const token=generation;try{for(const [id,v]of [...pending]){if(token!==generation)break;pending.delete(id);await send(id==='targetSpeed'?String(v):id.toUpperCase()+' '+v,token);}}catch(e){pending.clear();note(e.message);}finally{flushing=false;}}
 async function stop(){generation++;pending.clear();desired.clear();$('targetSpeed').value=0;updateLabel('targetSpeed');await send('0');note('Parada enviada; esperando confirmación del equipo.');}
 async function read(p){const dec=new TextDecoder();let buffer='';reader=p.readable.getReader();try{while(!closing){const {value,done}=await reader.read();if(done)break;buffer+=dec.decode(value,{stream:true});const lines=buffer.split('\n');buffer=lines.pop();for(const l of lines)receive(l.trim());if(buffer.length>4096)buffer='';}}catch(e){note(e.message);}finally{reader.releaseLock();reader=null;if(!closing){await queue.catch(()=>{});await p.close().catch(()=>{});if(port===p)port=null;ready=false;pending.clear();controls();note('USB desconectado. No se puede confirmar la parada del motor.');}}}
-$('connectBtn').onclick=action(async()=>{if(!navigator.serial)throw Error('Usa Chrome o Edge de escritorio.');const p=await navigator.serial.requestPort();await p.open({baudRate:115200});port=p;closing=false;ready=false;latest=null;lastData=0;epoch=performance.now();history.length=0;pending.clear();desired.clear();$('targetSpeed').value=0;updateLabel('targetSpeed');controls();readTask=read(p);await send('0');note('Esperando firmware v3 y confirmación de parada…');});
+setInterval(async()=>{if(!port||closing||heartbeatBusy)return;heartbeatBusy=true;try{if(!ready)await send('MODE PID');else if(fresh())await send('PING PID');}catch(e){note(e.message);}finally{heartbeatBusy=false;}},750);
+$('connectBtn').onclick=action(async()=>{if(!navigator.serial)throw Error('Usa Chrome o Edge de escritorio.');const p=await navigator.serial.requestPort();await p.open({baudRate:115200});port=p;closing=false;ready=false;latest=null;lastData=0;epoch=performance.now();history.length=0;pending.clear();desired.clear();$('targetSpeed').value=0;updateLabel('targetSpeed');controls();readTask=read(p);await send('MODE PID');note('Esperando firmware unificado v5 y confirmación de parada…');});
 $('disconnectBtn').onclick=action(async()=>{await stop();closing=true;controls();if(reader)await reader.cancel();await readTask;await queue.catch(()=>{});await port.close();port=null;closing=false;ready=false;controls();note('Puerto cerrado; se envió la orden de parada.');});
 $('resetBtn').onclick=action(stop);
 async function restoreDefaults(){
@@ -42,7 +51,7 @@ $('potBtn').onclick=action(async()=>{await send(pot?'POT OFF':'POT ON');});
 for(const id of sliders){updateLabel(id);$(id).oninput=()=>{updateLabel(id);if(!ready||!fresh())return;const v=Number($(id).value);desired.set(id,v);if(id==='targetSpeed'&&v===0){action(stop)();return;}pending.set(id,v);flush();};$(id).onchange=()=>flush();}
 window.addEventListener('beforeunload',e=>{if(port){e.preventDefault();e.returnValue='';}});
 $('currentPath').classList.remove('flow');$('rotor').classList.remove('rotating');controls();
-setInterval(()=>{if(!fresh()){pending.clear();if(port&&lastData)note('Sin datos recientes; valores congelados. La desconexión no detiene el equipo.');}controls();flush();},80);
+setInterval(()=>{if(!fresh()){pending.clear();if(port&&lastData)note('Sin datos recientes; valores congelados. El firmware corta el PWM tras 3 s sin latidos.');}controls();flush();},80);
 function resizeCanvas(c){const r=c.getBoundingClientRect(),scale=devicePixelRatio||1;const width=Math.max(1,Math.floor(r.width*scale)),height=Math.max(1,Math.floor(r.height*scale));if(c.width!==width)c.width=width;if(c.height!==height)c.height=height;return {width,height,scale};}
 const hover=new Map();for(const id of ['speedChart','controlChart','currentChart']){$(id).addEventListener('pointermove',e=>{const r=$(id).getBoundingClientRect();hover.set(id,e.clientX-r.left);});$(id).addEventListener('pointerleave',()=>hover.delete(id));}
 function drawChart(id,keys,unit){const c=$(id),{width,height,scale}=resizeCanvas(c),ctx=c.getContext('2d');ctx.setTransform(scale,0,0,scale,0,0);const w=width/scale,h=height/scale,L=55,R=14,T=23,B=29,W=w-L-R,H=h-T-B;ctx.clearRect(0,0,w,h);if(W<10||H<10)return;
@@ -54,7 +63,7 @@ function drawChart(id,keys,unit){const c=$(id),{width,height,scale}=resizeCanvas
  if(!history.length){ctx.fillStyle='#9ba8bd';ctx.fillText('Sin datos del montaje',L+15,T+H/2);return;}
  if(hover.has(id)){const t=end-duration+(hover.get(id)-L)/W*duration;const d=history.reduce((a,b)=>Math.abs(a.time-t)<Math.abs(b.time-t)?a:b);ctx.strokeStyle='#ffffff77';ctx.beginPath();ctx.moveTo(x(d.time),T);ctx.lineTo(x(d.time),T+H);ctx.stroke();const text=keys.map(k=>k+': '+val(d,k).toFixed(1)).join('  ')+' '+unit;const tw=ctx.measureText(text).width+16;const tx=Math.max(L,Math.min(x(d.time),w-tw));ctx.fillStyle='#14243a';ctx.fillRect(tx,T+5,tw,26);ctx.fillStyle='#fff';ctx.fillText(text,tx+8,T+22);}}
 let lastPlot=0;
-function animate(now){const dt=Math.min((now-lastFrame)/1000,.1);lastFrame=now;const live=fresh();if(live&&latest.V==='3')motorView.angle=(motorView.angle+latest.RPM*Math.PI/30*dt)%(Math.PI*2);$('rotor').style.transform='rotate('+motorView.angle+'rad)';$('stateText').textContent=live?latest.Estado:port?'Sin datos recientes':'Sin conexión';$('motorState').textContent=live?(latest.RPM>0?'Giro · encoder':'Detenido'):'Sin datos en vivo';$('speedValue').style.opacity=live?'1':'.45';drawMotor();if(now-lastPlot>80){lastPlot=now;drawChart('speedChart',['RPM','Ref'],'RPM');drawChart('controlChart',['PWM'],'%');drawChart('currentChart',['Error'],'RPM');}requestAnimationFrame(animate);}
+function animate(now){const dt=Math.min((now-lastFrame)/1000,.1);lastFrame=now;const live=fresh();if(live&&latest.V==='5')motorView.angle=(motorView.angle+latest.RPM*Math.PI/30*dt)%(Math.PI*2);$('rotor').style.transform='rotate('+motorView.angle+'rad)';$('stateText').textContent=live?latest.Estado:port?'Sin datos recientes':'Sin conexión';$('motorState').textContent=live?(latest.RPM>0?'Giro · encoder':'Detenido'):'Sin datos en vivo';$('speedValue').style.opacity=live?'1':'.45';drawMotor();if(now-lastPlot>80){lastPlot=now;drawChart('speedChart',['RPM','Ref'],'RPM');drawChart('controlChart',['PWM'],'%');drawChart('currentChart',['Error'],'RPM');}requestAnimationFrame(animate);}
 
 
 const motorView = { angle: 0 };
@@ -140,3 +149,18 @@ function drawMotor() {
 
 
 requestAnimationFrame(animate);
+window.pidExperiment = {
+ status(){return ready&&fresh()?{...latest}:null;},
+ async prepare(gains){
+  if(experimentBusy||!ready||!fresh()||latest.Estado!=='PARADO'||latest.Ref!==0||latest.PWM!==0||latest.RPM>=2)throw Error('Detén el motor y espera datos de reposo antes de cargar ganancias.');
+  if(gains.length!==3||gains.some((v,i)=>!Number.isFinite(v)||v<0||v>[10,2,2][i]||Math.abs(v*1000-Math.round(v*1000))>1e-7))throw Error('Ganancias inválidas; usa hasta tres decimales.');
+  experimentBusy=true;generation++;pending.clear();desired.clear();controls();
+  try {await send('0');await send('POT OFF');for(let i=0;i<3;i++){await send(['KP','KI','KD'][i]+' '+gains[i]);const id=['kp','ki','kd'][i];$(id).step='0.001';$(id).value=gains[i];updateLabel(id);}}finally{experimentBusy=false;controls();}
+ },
+ async start(ref){
+  if(experimentBusy||!ready||!fresh()||latest.Estado!=='PARADO'||latest.Ref!==0||latest.PWM!==0||latest.RPM>=2||!Number.isFinite(ref)||ref<=0||ref>200)throw Error('No se puede iniciar la prueba: revisa conexión y reposo.');
+  experimentBusy=true;generation++;pending.clear();desired.clear();controls();
+  try{await send(String(ref));$('targetSpeed').value=ref;updateLabel('targetSpeed');}catch(e){experimentBusy=false;controls();throw e;}
+ },
+ async stop(){try{await stop();}finally{experimentBusy=false;controls();}}
+};
